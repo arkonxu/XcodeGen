@@ -9,7 +9,7 @@ public struct AggregateTarget: ProjectTarget {
     public var settings: Settings
     public var buildScripts: [BuildScript]
     public var buildToolPlugins: [BuildToolPlugin]
-    public var configFiles: [String: String]
+    public var configFiles: [ConfigFile]
     public var scheme: TargetScheme?
     public var attributes: [String: Any]
 
@@ -17,7 +17,7 @@ public struct AggregateTarget: ProjectTarget {
         name: String,
         targets: [String],
         settings: Settings = .empty,
-        configFiles: [String: String] = [:],
+        configFiles: [ConfigFile] = [],
         buildScripts: [BuildScript] = [],
         buildToolPlugins: [BuildToolPlugin] = [],
         scheme: TargetScheme? = nil,
@@ -61,7 +61,7 @@ extension AggregateTarget: NamedJSONDictionaryConvertible {
         self.name = jsonDictionary.json(atKeyPath: "name") ?? name
         targets = jsonDictionary.json(atKeyPath: "targets") ?? []
         settings = jsonDictionary.json(atKeyPath: "settings") ?? .empty
-        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? [:]
+        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? []
         buildScripts = jsonDictionary.json(atKeyPath: "buildScripts") ?? []
         buildToolPlugins = jsonDictionary.json(atKeyPath: "buildToolPlugins") ?? []
         scheme = jsonDictionary.json(atKeyPath: "scheme")
@@ -88,7 +88,6 @@ extension AggregateTarget: PathContainer {
     static var pathProperties: [PathProperty] {
         [
             .dictionary([
-                .string("configFiles"),
                 .object("buildScripts", BuildScript.pathProperties),
             ]),
         ]

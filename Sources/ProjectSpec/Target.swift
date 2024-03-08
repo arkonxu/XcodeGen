@@ -2,6 +2,7 @@ import Foundation
 import JSONUtilities
 import XcodeProj
 import Version
+import SwiftCLI
 
 public struct LegacyTarget: Equatable {
     public static let passSettingsDefault = false
@@ -51,7 +52,7 @@ public struct Target: ProjectTarget {
     public var postCompileScripts: [BuildScript]
     public var postBuildScripts: [BuildScript]
     public var buildRules: [BuildRule]
-    public var configFiles: [String: String]
+    public var configFiles: [ConfigFile]
     public var scheme: TargetScheme?
     public var legacy: LegacyTarget?
     public var deploymentTarget: Version?
@@ -83,7 +84,7 @@ public struct Target: ProjectTarget {
         productName: String? = nil,
         deploymentTarget: Version? = nil,
         settings: Settings = .empty,
-        configFiles: [String: String] = [:],
+        configFiles: [ConfigFile] = [],
         sources: [TargetSource] = [],
         dependencies: [Dependency] = [],
         info: Plist? = nil,
@@ -144,7 +145,6 @@ extension Target: PathContainer {
             .dictionary([
                 .string("sources"),
                 .object("sources", TargetSource.pathProperties),
-                .string("configFiles"),
                 .object("dependencies", Dependency.pathProperties),
                 .object("info", Plist.pathProperties),
                 .object("entitlements", Plist.pathProperties),
@@ -317,7 +317,8 @@ extension Target: NamedJSONDictionaryConvertible {
         }
 
         settings = jsonDictionary.json(atKeyPath: "settings") ?? .empty
-        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? [:]
+        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? []
+        
         if let source: String = jsonDictionary.json(atKeyPath: "sources") {
             sources = [TargetSource(path: source)]
         } else if let array = jsonDictionary["sources"] as? [Any] {

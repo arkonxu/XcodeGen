@@ -2,7 +2,6 @@ import Foundation
 import PathKit
 import ProjectSpec
 import XcodeProj
-import SwiftCLI
 
 public class FileWriter {
 
@@ -16,18 +15,12 @@ public class FileWriter {
         let projectPath = projectPath ?? project.defaultProjectPath
         let tempPath = try Path.processUniqueTemporary() + "XcodeGen"
         try? tempPath.delete()
-        
-        var tempXcodeProj: XcodeProj?
         if projectPath.exists {
-            tempXcodeProj = try XcodeProj(path: projectPath)
-            try tempXcodeProj?.write(path: tempPath, override: true)
+            try projectPath.move(tempPath)
         }
-        
         try xcodeProject.write(path: tempPath, override: true)
         try? projectPath.delete()
         try tempPath.move(projectPath)
-        try? tempPath.delete()
-        WriteStream.stdout.print("TERMINADO")
     }
 
     public func writePlists() throws {

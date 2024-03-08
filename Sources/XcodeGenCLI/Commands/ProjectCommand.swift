@@ -28,7 +28,6 @@ class ProjectCommand: Command {
     }
 
     func execute() throws {
-        
         var projectSpecs: [Path] = []
         if let spec = spec {
             projectSpecs = spec.components(separatedBy: ",").map { Path($0).absolute() }

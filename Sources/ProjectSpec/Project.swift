@@ -2,6 +2,7 @@ import Foundation
 import JSONUtilities
 import PathKit
 import Yams
+import SwiftCLI
 
 public struct Project: BuildSettingsContainer {
 
@@ -29,7 +30,7 @@ public struct Project: BuildSettingsContainer {
     public var options: SpecOptions
     public var attributes: [String: Any]
     public var fileGroups: [String]
-    public var configFiles: [String: String]
+    public var configFiles: [ConfigFile]
     public var include: [String] = []
     public var projectReferences: [ProjectReference] = [] {
         didSet {
@@ -54,7 +55,7 @@ public struct Project: BuildSettingsContainer {
         packages: [String: SwiftPackage] = [:],
         options: SpecOptions = SpecOptions(),
         fileGroups: [String] = [],
-        configFiles: [String: String] = [:],
+        configFiles: [ConfigFile] = [],
         attributes: [String: Any] = [:],
         projectReferences: [ProjectReference] = []
     ) {
@@ -169,16 +170,16 @@ extension Project {
 
     public init(basePath: Path = "", jsonDictionary: JSONDictionary) throws {
         self.basePath = basePath
-
+        
         let jsonDictionary = Project.resolveProject(jsonDictionary: jsonDictionary)
-
+        
         name = try jsonDictionary.json(atKeyPath: "name")
         settings = jsonDictionary.json(atKeyPath: "settings") ?? .empty
         settingGroups = jsonDictionary.json(atKeyPath: "settingGroups")
-            ?? jsonDictionary.json(atKeyPath: "settingPresets") ?? [:]
+        ?? jsonDictionary.json(atKeyPath: "settingPresets") ?? [:]
         let configs: [String: String] = jsonDictionary.json(atKeyPath: "configs") ?? [:]
         self.configs = configs.isEmpty ? Config.defaultConfigs :
-            configs.map { Config(name: $0, type: ConfigType(rawValue: $1)) }.sorted { $0.name < $1.name }
+        configs.map { Config(name: $0, type: ConfigType(rawValue: $1)) }.sorted { $0.name < $1.name }
         targets = try jsonDictionary.json(atKeyPath: "targets", parallel: true).sorted { $0.name < $1.name }
         aggregateTargets = try jsonDictionary.json(atKeyPath: "aggregateTargets").sorted { $0.name < $1.name }
         projectReferences = try jsonDictionary.json(atKeyPath: "projectReferences").sorted { $0.name < $1.name }
@@ -189,7 +190,13 @@ extension Project {
             breakpoints = []
         }
         fileGroups = jsonDictionary.json(atKeyPath: "fileGroups") ?? []
-        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? [:]
+        configFiles = jsonDictionary.json(atKeyPath: "configFiles") ?? []
+        configFiles = configFiles.map { configFile in
+            var mutableConfigFile = configFile
+            mutableConfigFile.configOptions = mutableConfigFile.getConfigurationOptions(path: "\(basePath.string)/\(mutableConfigFile.path)")
+            return mutableConfigFile
+        }
+        
         attributes = jsonDictionary.json(atKeyPath: "attributes") ?? [:]
         include = jsonDictionary.json(atKeyPath: "include") ?? []
         if jsonDictionary["packages"] != nil {
@@ -211,9 +218,44 @@ extension Project {
         } else {
             options = SpecOptions()
         }
+        
         targetsMap = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
         aggregateTargetsMap = Dictionary(uniqueKeysWithValues: aggregateTargets.map { ($0.name, $0) })
         projectReferencesMap = Dictionary(uniqueKeysWithValues: projectReferences.map { ($0.name, $0) })
+        
+        targets = targets.map { target in // Add xcconfig properties
+            var mutableTarget = target
+            mutableTarget.configFiles = mutableTarget.configFiles.map { configFile in
+                var mutableConfigFile = configFile
+                mutableConfigFile.configOptions = mutableConfigFile.getConfigurationOptions(path: "\(basePath.string)/\(mutableConfigFile.path)")
+                return mutableConfigFile
+            }
+            return mutableTarget
+        }
+        
+        targets = targets.map { target in
+            var mutableTarget = target
+            guard let entitlements = target.entitlements else {
+                return mutableTarget
+            }
+            var entitlementsProperties = entitlements.properties
+            entitlementsProperties.forEach { entitlementProperty, entitlementValue in
+                if let value = (entitlementValue as? [String])?.first?.extractStringsBetweenDelimiters(from: "$(", to: ")").first,
+                   let newValue = target.configFiles.first?.configOptions?.first(where: { $0.configName == value })?.configValue {
+                    entitlementsProperties[entitlementProperty] = newValue
+                } else if let value = (entitlementValue as? String)?.extractStringsBetweenDelimiters(from: "$(", to: ")").first,
+                          let newValue = target.configFiles.first?.configOptions?.first(where: { $0.configName == value })?.configValue {
+                    entitlementsProperties[entitlementProperty] = newValue
+                } else {
+                    entitlementsProperties[entitlementProperty] = entitlementValue
+                }
+            }
+            
+            mutableTarget.entitlements = Plist(path: entitlements.path, attributes: entitlementsProperties)
+
+            return mutableTarget
+        }
+
     }
 
     static func resolveProject(jsonDictionary: JSONDictionary) -> JSONDictionary {
@@ -234,7 +276,6 @@ extension Project: PathContainer {
 
     static var pathProperties: [PathProperty] {
         [
-            .string("configFiles"),
             .object("options", SpecOptions.pathProperties),
             .object("targets", Target.pathProperties),
             .object("targetTemplates", Target.pathProperties),
@@ -277,7 +318,7 @@ extension Project {
 extension BuildSettingsContainer {
 
     fileprivate var configFilePaths: [Path] {
-        configFiles.values.map { Path($0) }
+        configFiles.map { Path($0.path) }
     }
 }
 

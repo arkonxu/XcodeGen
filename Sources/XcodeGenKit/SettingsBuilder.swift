@@ -30,7 +30,7 @@ extension Project {
         }
 
         // Prevent setting presets from overwriting settings in project xcconfig files
-        if let configPath = configFiles[config.name] {
+        if let configPath = configFiles.first(where: {$0.type == config.name})?.path {
             buildSettings = removeConfigFileSettings(from: buildSettings, configPath: configPath)
         }
 
@@ -101,11 +101,11 @@ extension Project {
         }
 
         // Prevent setting presets from overrwriting settings in target xcconfig files
-        if let configPath = target.configFiles[config.name] {
+        if let configPath = target.configFiles.first(where: {$0.type == config.name})?.path {
             buildSettings = removeConfigFileSettings(from: buildSettings, configPath: configPath)
         }
         // Prevent setting presets from overrwriting settings in project xcconfig files
-        if let configPath = configFiles[config.name] {
+        if let configPath = target.configFiles.first(where: {$0.type == config.name})?.path {
             buildSettings = removeConfigFileSettings(from: buildSettings, configPath: configPath)
         }
 
@@ -145,14 +145,14 @@ extension Project {
             let value = getTargetBuildSettings(target: target, config: config)[setting] {
             return value
         }
-        if let configFilePath = target.configFiles[config.name],
+        if let configFilePath = target.configFiles.first(where: {$0.type == config.name})?.path,
             let value = loadConfigFileBuildSettings(path: configFilePath)?[setting] {
             return value
         }
         if let value = getProjectBuildSettings(config: config)[setting] {
             return value
         }
-        if let configFilePath = configFiles[config.name],
+        if let configFilePath = target.configFiles.first(where: {$0.type == config.name})?.path,
             let value = loadConfigFileBuildSettings(path: configFilePath)?[setting] {
             return value
         }

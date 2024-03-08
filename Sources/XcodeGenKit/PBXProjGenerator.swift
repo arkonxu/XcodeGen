@@ -62,7 +62,7 @@ public class PBXProjGenerator {
         let buildConfigs: [XCBuildConfiguration] = project.configs.map { config in
             let buildSettings = project.getProjectBuildSettings(config: config)
             var baseConfiguration: PBXFileReference?
-            if let configPath = project.configFiles[config.name],
+            if let configPath = project.configFiles.first(where: {$0.type == config.name})?.path,
                 let fileReference = sourceGenerator.getContainedFileReference(path: project.basePath + configPath) as? PBXFileReference {
                 baseConfiguration = fileReference
             }
@@ -329,7 +329,7 @@ public class PBXProjGenerator {
             let buildSettings = project.getBuildSettings(settings: target.settings, config: config)
 
             var baseConfiguration: PBXFileReference?
-            if let configPath = target.configFiles[config.name] {
+            if let configPath = target.configFiles.first(where: {$0.type == config.name})?.path {
                 baseConfiguration = sourceGenerator.getContainedFileReference(path: project.basePath + configPath) as? PBXFileReference
             }
             let buildConfig = XCBuildConfiguration(
@@ -1315,7 +1315,7 @@ public class PBXProjGenerator {
 
         let configs: [XCBuildConfiguration] = project.configs.map { config in
             var buildSettings = project.getTargetBuildSettings(target: target, config: config)
-
+            
             // Set CODE_SIGN_ENTITLEMENTS
             if let entitlements = target.entitlements {
                 buildSettings["CODE_SIGN_ENTITLEMENTS"] = entitlements.path
@@ -1412,9 +1412,10 @@ public class PBXProjGenerator {
             }
 
             var baseConfiguration: PBXFileReference?
-            if let configPath = target.configFiles[config.name],
-                let fileReference = sourceGenerator.getContainedFileReference(path: project.basePath + configPath) as? PBXFileReference {
-                baseConfiguration = fileReference
+            if let configPath = target.configFiles.first(where: {$0.type == config.name})?.path {
+                if let fileReference = sourceGenerator.getContainedFileReference(path: project.basePath + configPath) as? PBXFileReference {
+                    baseConfiguration = fileReference
+                }
             }
             let buildConfig = XCBuildConfiguration(
                 name: config.name,

@@ -127,7 +127,7 @@ extension Project {
             schemes: [],
             options: SpecOptions(),
             fileGroups: [],
-            configFiles: [:],
+            configFiles: [],
             attributes: [:]
         )
     }

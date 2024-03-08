@@ -58,13 +58,13 @@ extension Project {
                 errors.append(.invalidLocalPackage(name))
             }
         }
-
-        for (config, configFile) in configFiles {
-            if !options.disabledValidations.contains(.missingConfigFiles) && !(basePath + configFile).exists {
-                errors.append(.invalidConfigFile(configFile: configFile, config: config))
+        
+        for config in configFiles {
+            if !options.disabledValidations.contains(.missingConfigFiles) && !(basePath + config.path).exists {
+                errors.append(.invalidConfigFile(configFile: config.path, config: config.type))
             }
-            if !options.disabledValidations.contains(.missingConfigs) && getConfig(config) == nil {
-                errors.append(.invalidConfigFileConfig(config))
+            if !options.disabledValidations.contains(.missingConfigs) && getConfig(config.type) == nil {
+                errors.append(.invalidConfigFileConfig(config.type))
             }
         }
 
@@ -79,14 +79,14 @@ extension Project {
         }
 
         for target in projectTargets {
-
-            for (config, configFile) in target.configFiles {
-                let configPath = basePath + configFile
+            
+            for config in configFiles {
+                let configPath = basePath + config.path
                 if !options.disabledValidations.contains(.missingConfigFiles) && !configPath.exists {
-                    errors.append(.invalidTargetConfigFile(target: target.name, configFile: configPath.string, config: config))
+                    errors.append(.invalidTargetConfigFile(target: target.name, configFile: configPath.string, config: config.type))
                 }
-                if !options.disabledValidations.contains(.missingConfigs) && getConfig(config) == nil {
-                    errors.append(.invalidConfigFileConfig(config))
+                if !options.disabledValidations.contains(.missingConfigs) && getConfig(config.type) == nil {
+                    errors.append(.invalidConfigFileConfig(config.type))
                 }
             }
 

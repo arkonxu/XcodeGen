@@ -18,7 +18,6 @@ class SourceGenerator {
     private var fileReferencesByPath: [String: PBXFileElement] = [:]
     private var groupsByPath: [Path: PBXGroup] = [:]
     private var variantGroupsByPath: [Path: PBXVariantGroup] = [:]
-    private var localPackageGroup: PBXGroup?
 
     private let project: Project
     let pbxProj: PBXProj
@@ -54,21 +53,13 @@ class SourceGenerator {
     }
 
     func createLocalPackage(path: Path, group: Path?) throws {
-        var pbxGroup: PBXGroup?
-        
-        if let location = group {
-            let fullLocationPath = project.basePath + location
-            pbxGroup = getGroup(path: fullLocationPath, mergingChildren: [], createIntermediateGroups: true, hasCustomParent: false, isBaseGroup: true)
+        var parentGroup: String = project.options.localPackagesGroup ?? "Packages"
+        if let group {
+          parentGroup = group.string
         }
-        
-        if localPackageGroup == nil && group == nil {
-            let groupName = project.options.localPackagesGroup ?? "Packages"
-            localPackageGroup = addObject(PBXGroup(sourceTree: .sourceRoot, name: groupName))
-            rootGroups.insert(localPackageGroup!)
-        }
-        
+
         let absolutePath = project.basePath + path.normalize()
-        
+
         // Get the local package's relative path from the project root
         let fileReferencePath = try? absolutePath.relativePath(from: projectDirectory ?? project.basePath).string
 
@@ -80,10 +71,12 @@ class SourceGenerator {
                 path: fileReferencePath
             )
         )
-        if let pbxGroup = pbxGroup {
-            pbxGroup.children.append(fileReference)
+
+        if parentGroup == "" {
+            rootGroups.insert(fileReference)
         } else {
-            localPackageGroup!.children.append(fileReference)
+            let parentGroups = parentGroup.components(separatedBy: "/")
+            createParentGroups(parentGroups, for: fileReference)
         }
     }
 
@@ -455,6 +448,7 @@ class SourceGenerator {
 
         let createIntermediateGroups = targetSource.createIntermediateGroups ?? project.options.createIntermediateGroups
         let nonLocalizedChildren = children.filter { $0.extension != "lproj" }
+        let stringCatalogChildren = children.filter { $0.extension == "xcstrings" }
 
         let directories = nonLocalizedChildren
             .filter {
@@ -520,6 +514,15 @@ class SourceGenerator {
         }()
 
         knownRegions.formUnion(localisedDirectories.map { $0.lastComponentWithoutExtension })
+        
+        // XCode 15 - Detect known regions from locales present in string catalogs
+        
+        let stringCatalogsLocales = stringCatalogChildren
+            .compactMap { StringCatalog(from: $0) }
+            .reduce(Set<String>(), { partialResult, stringCatalog in
+                partialResult.union(stringCatalog.includedLocales)
+            })
+        knownRegions.formUnion(stringCatalogsLocales)
 
         // create variant groups of the base localisation first
         var baseLocalisationVariantGroups: [PBXVariantGroup] = []

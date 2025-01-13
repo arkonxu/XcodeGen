@@ -22,6 +22,7 @@ public class PBXProjGenerator {
     var targetFileReferences: [String: PBXFileReference] = [:]
     var sdkFileReferences: [String: PBXFileReference] = [:]
     var packageReferences: [String: XCRemoteSwiftPackageReference] = [:]
+    var localPackageReferences: [String: XCLocalSwiftPackageReference] = [:]
 
     var carthageFrameworksByPlatform: [String: Set<PBXFileElement>] = [:]
     var frameworkFiles: [PBXFileElement] = []
@@ -30,7 +31,6 @@ public class PBXProjGenerator {
     var generated = false
 
     private var projects: [ProjectReference: PBXProj] = [:]
-    lazy private var localPackageReferences: [String] = project.packages.compactMap { $0.value.isLocal ? $0.key : nil }
 
     public init(project: Project, projectDirectory: Path? = nil) {
         self.project = project
@@ -170,6 +170,10 @@ public class PBXProjGenerator {
                 packageReferences[name] = packageReference
                 addObject(packageReference)
             case let .local(path, group):
+                let packageReference = XCLocalSwiftPackageReference(relativePath: path)
+                localPackageReferences[name] = packageReference
+                addObject(packageReference)
+                
                 try sourceGenerator.createLocalPackage(path: Path(path), group: group.map { Path($0) })
             }
         }
@@ -310,7 +314,8 @@ public class PBXProjGenerator {
         }
         pbxProject.knownRegions = knownRegions.sorted()
 
-        pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+        pbxProject.remotePackages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+        pbxProject.localPackages = localPackageReferences.sorted { $0.key < $1.key }.map { $1 }
 
         let allTargets: [PBXTarget] = targetObjects.valueArray + targetAggregateObjects.valueArray
         pbxProject.targets = allTargets
@@ -631,8 +636,8 @@ public class PBXProjGenerator {
         }
 
         if let order = groupOrdering?.order {
-            let files = group.children.filter { $0 is PBXFileReference }
-            var groups = group.children.filter { $0 is PBXGroup }
+            let files = group.children.filter { !$0.isGroupOrFolder }
+            var groups = group.children.filter {  $0.isGroupOrFolder }
 
             var filteredGroups = [PBXFileElement]()
 
@@ -945,7 +950,7 @@ public class PBXProjGenerator {
 
                 // If package's reference is none and there is no specified package in localPackages,
                 // then ignore the package specified as dependency.
-                if packageReference == nil, !localPackageReferences.contains(dependency.reference) {
+                if packageReference == nil, localPackageReferences[dependency.reference] == nil {
                     continue
                 }
 
@@ -1470,7 +1475,7 @@ public class PBXProjGenerator {
     func makePackagePluginDependency(for target: ProjectTarget) -> [PBXTargetDependency] {
         target.buildToolPlugins.compactMap { buildToolPlugin in
             let packageReference = packageReferences[buildToolPlugin.package]
-            if packageReference == nil, !localPackageReferences.contains(buildToolPlugin.package) {
+            if packageReference == nil, localPackageReferences[buildToolPlugin.package] == nil {
                 return nil
             }
 
@@ -1627,6 +1632,10 @@ extension Platform {
 }
 
 extension PBXFileElement {
+    /// - returns: `true` if the element is a group or a folder reference. Likely an SPM package.
+    var isGroupOrFolder: Bool {
+        self is PBXGroup || (self as? PBXFileReference)?.lastKnownFileType == "folder"
+    }
 
     public func getSortOrder(groupSortPosition: SpecOptions.GroupSortPosition) -> Int {
         if type(of: self).isa == "PBXGroup" {
